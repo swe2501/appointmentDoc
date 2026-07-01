@@ -3,6 +3,7 @@ import os
 import uuid
 import time
 import threading
+import requests
 from flask import Flask, render_template, request, jsonify
 
 try:
@@ -32,10 +33,23 @@ TAIWAN_KEYWORDS = [
 ]
 CN_KEYWORDS = ["北京", "上海", "广州", "深圳", "成都", "武汉", "杭州", "中国", "大陆", "重庆"]
 
+# Instagram mobile app headers — less restricted than web GraphQL
+MOBILE_HEADERS = {
+    "User-Agent": (
+        "Instagram 275.0.0.27.98 Android "
+        "(33/13; 420dpi; 1080x2400; samsung; SM-G991B; o1s; exynos2100; en_US; 458229258)"
+    ),
+    "X-IG-App-ID": "936619743392459",
+    "X-IG-Capabilities": "3brTvw==",
+    "X-IG-Connection-Type": "WIFI",
+    "Accept-Language": "en-US",
+    "Accept": "*/*",
+}
 
-def is_taiwanese(profile) -> bool:
-    bio = (profile.biography or "").lower()
-    full_name = (profile.full_name or "").lower()
+
+def is_taiwanese(bio: str, full_name: str) -> bool:
+    bio = bio.lower()
+    full_name = full_name.lower()
     for kw in TAIWAN_KEYWORDS:
         if kw.lower() in bio or kw.lower() in full_name:
             return True
@@ -50,21 +64,76 @@ def is_taiwanese(profile) -> bool:
     return False
 
 
-def login_with_cookie(loader, username: str, session_cookie: str) -> str | None:
-    loader.context._session.cookies.set("sessionid", session_cookie, domain=".instagram.com", path="/")
-    loader.context._session.cookies.set("ig_did", "0", domain=".instagram.com", path="/")
+def build_mobile_session(session_id: str) -> requests.Session:
+    sess = requests.Session()
+    sess.headers.update(MOBILE_HEADERS)
+    sess.cookies.set("sessionid", session_id, domain=".instagram.com", path="/")
+    return sess
+
+
+def get_user_id(sess: requests.Session, username: str) -> str:
+    r = sess.get(
+        "https://i.instagram.com/api/v1/users/web_profile_info/",
+        params={"username": username},
+        timeout=20,
+    )
+    r.raise_for_status()
+    data = r.json()
+    return data["data"]["user"]["id"]
+
+
+def fetch_all_following(sess: requests.Session, user_id: str, update_fn) -> list[dict]:
+    """Paginate through /friendships/{user_id}/following/ (200 per page)."""
+    all_users = []
+    max_id = None
+    page = 0
+
+    while True:
+        page += 1
+        params = {"count": 200}
+        if max_id:
+            params["max_id"] = max_id
+
+        r = sess.get(
+            f"https://i.instagram.com/api/v1/friendships/{user_id}/following/",
+            params=params,
+            timeout=20,
+        )
+        if r.status_code == 401:
+            raise PermissionError("登入失效，請重新登入。")
+        if r.status_code != 200:
+            raise RuntimeError(f"取得追蹤清單失敗（{r.status_code}）：{r.text[:200]}")
+
+        data = r.json()
+        batch = data.get("users", [])
+        all_users.extend(batch)
+        update_fn(f"取得追蹤清單... 第 {page} 頁，已取得 {len(all_users)} 人")
+
+        max_id = data.get("next_max_id")
+        if not max_id:
+            break
+        time.sleep(1)
+
+    return all_users
+
+
+def fetch_user_detail(sess: requests.Session, user_id: str) -> dict | None:
+    """Get full profile info (includes follower_count) for a single user."""
     try:
-        profile = instaloader.Profile.from_username(loader.context, username)
-        loader.context.username = profile.username
-        return None
-    except instaloader.exceptions.LoginRequiredException:
-        return "Cookie 無效或已過期，請重新取得 sessionid。"
-    except Exception as e:
-        return f"Cookie 登入失敗：{str(e)}"
+        r = sess.get(
+            f"https://i.instagram.com/api/v1/users/{user_id}/info/",
+            timeout=15,
+        )
+        if r.status_code == 200:
+            return r.json().get("user", {})
+    except Exception:
+        pass
+    return None
 
 
 def run_filter_job(job_id: str, username: str, password: str, two_fa_code: str | None,
                    min_followers: int, taiwan_only: bool, session_cookie: str | None = None):
+
     def update(status=None, progress=None, error=None, needs_2fa=False):
         with jobs_lock:
             if status:
@@ -76,26 +145,17 @@ def run_filter_job(job_id: str, username: str, password: str, two_fa_code: str |
             if needs_2fa:
                 jobs[job_id]["needs_2fa"] = True
 
-    loader = instaloader.Instaloader(
-        quiet=True,
-        download_pictures=False,
-        download_videos=False,
-        download_video_thumbnails=False,
-        download_geotags=False,
-        download_comments=False,
-        save_metadata=False,
-        sleep=True,
-        max_connection_attempts=3,
-    )
-
+    # ── Step 1: get sessionid ────────────────────────────────────────────────
     update(progress="正在登入 Instagram...")
 
     if session_cookie:
-        err = login_with_cookie(loader, username, session_cookie)
-        if err:
-            update(status="error", error=err)
-            return
+        sessionid = session_cookie
     else:
+        # Use instaloader only for the login flow
+        loader = instaloader.Instaloader(quiet=True, sleep=True, max_connection_attempts=3,
+                                         download_pictures=False, download_videos=False,
+                                         download_video_thumbnails=False, download_geotags=False,
+                                         download_comments=False, save_metadata=False)
         try:
             loader.login(username, password)
         except instaloader.exceptions.BadCredentialsException:
@@ -114,47 +174,75 @@ def run_filter_job(job_id: str, username: str, password: str, two_fa_code: str |
             update(status="error", error=f"登入失敗：{str(e)}")
             return
 
+        # Extract sessionid from instaloader's requests session
+        sessionid = loader.context._session.cookies.get("sessionid", domain=".instagram.com")
+        if not sessionid:
+            update(status="error", error="無法取得登入 session，請重試。")
+            return
+
+    # ── Step 2: use mobile API ───────────────────────────────────────────────
+    sess = build_mobile_session(sessionid)
+
     try:
-        update(progress="正在取得追蹤清單...")
-        profile = instaloader.Profile.from_username(loader.context, username)
-        followees = list(profile.get_followees())
+        update(progress="取得用戶資訊...")
+        user_id = get_user_id(sess, username)
     except Exception as e:
-        update(status="error", error=f"無法取得追蹤清單：{str(e)}")
+        update(status="error", error=f"無法取得用戶資訊：{str(e)}")
         return
 
-    total = len(followees)
-    update(progress=f"共追蹤 {total} 個帳號，開始掃描...")
+    try:
+        following = fetch_all_following(sess, user_id, lambda p: update(progress=p))
+    except PermissionError as e:
+        update(status="error", error=str(e))
+        return
+    except Exception as e:
+        update(status="error", error=str(e))
+        return
 
-    for i, followee in enumerate(followees):
+    total = len(following)
+    update(progress=f"共追蹤 {total} 人，開始掃描粉絲數...")
+
+    for i, user in enumerate(following):
         with jobs_lock:
             if jobs[job_id].get("cancelled"):
                 break
 
-        if i > 0 and i % 10 == 0:
-            time.sleep(1.5)
+        if i > 0 and i % 20 == 0:
+            time.sleep(1)
 
+        uid = user.get("pk") or user.get("id")
+        uname = user.get("username", "")
         pct = int((i + 1) / total * 100)
-        update(progress=f"掃描中 {i+1}/{total}（{pct}%）— @{followee.username}")
+        update(progress=f"掃描中 {i+1}/{total}（{pct}%）— @{uname}")
 
-        try:
-            followers = followee.followers
-        except Exception:
+        # follower_count is often included in the following list response
+        follower_count = user.get("follower_count")
+        bio = user.get("biography") or ""
+        full_name = user.get("full_name") or ""
+
+        # If follower_count missing, fetch full profile
+        if follower_count is None:
+            detail = fetch_user_detail(sess, uid)
+            if detail:
+                follower_count = detail.get("follower_count", 0)
+                bio = detail.get("biography") or bio
+                full_name = detail.get("full_name") or full_name
+            time.sleep(0.5)
+
+        if not follower_count or follower_count < min_followers:
             continue
 
-        if followers < min_followers:
-            continue
-
-        if taiwan_only and not is_taiwanese(followee):
+        if taiwan_only and not is_taiwanese(bio, full_name):
             continue
 
         entry = {
-            "username": followee.username,
-            "full_name": followee.full_name or "",
-            "followers": followers,
-            "biography": (followee.biography or "").replace("\n", " "),
-            "url": f"https://www.instagram.com/{followee.username}/",
-            "is_verified": followee.is_verified,
-            "profile_pic": followee.profile_pic_url,
+            "username": uname,
+            "full_name": full_name,
+            "followers": follower_count,
+            "biography": bio.replace("\n", " "),
+            "url": f"https://www.instagram.com/{uname}/",
+            "is_verified": user.get("is_verified", False),
+            "profile_pic": user.get("profile_pic_url", ""),
         }
         with jobs_lock:
             jobs[job_id]["results"].append(entry)
@@ -195,12 +283,11 @@ def start():
             "needs_2fa": False,
         }
 
-    thread = threading.Thread(
+    threading.Thread(
         target=run_filter_job,
         args=(job_id, username, password, two_fa_code, min_followers, taiwan_only, session_cookie),
         daemon=True,
-    )
-    thread.start()
+    ).start()
 
     return jsonify({"job_id": job_id})
 
@@ -211,7 +298,6 @@ def status(job_id: str):
         job = jobs.get(job_id)
     if not job:
         return jsonify({"error": "找不到此任務"}), 404
-
     return jsonify({
         "status": job["status"],
         "progress": job["progress"],

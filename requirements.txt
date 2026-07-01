@@ -1,4 +1,5 @@
 flask>=3.0
 gunicorn>=21.0
-instaloader>=4.10
+instaloader
 langdetect>=1.0.9
+requests>=2.31
