@@ -258,6 +258,40 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/analyze", methods=["POST"])
+def analyze():
+    """Accept raw following list from browser console script and filter it."""
+    data = request.json or {}
+    users = data.get("users") or []
+    min_followers = int(data.get("min_followers") or FOLLOWER_THRESHOLD)
+    taiwan_only = bool(data.get("taiwan_only", True))
+
+    if not users:
+        return jsonify({"error": "沒有收到資料"}), 400
+
+    results = []
+    for u in users:
+        followers = u.get("followers") or u.get("follower_count") or 0
+        if followers < min_followers:
+            continue
+        bio = u.get("biography") or ""
+        full_name = u.get("full_name") or ""
+        if taiwan_only and not is_taiwanese(bio, full_name):
+            continue
+        results.append({
+            "username": u.get("username", ""),
+            "full_name": full_name,
+            "followers": followers,
+            "biography": bio.replace("\n", " "),
+            "url": u.get("url") or f"https://www.instagram.com/{u.get('username', '')}/",
+            "is_verified": bool(u.get("is_verified")),
+            "profile_pic": u.get("profile_pic") or u.get("profile_pic_url") or "",
+        })
+
+    results.sort(key=lambda x: x["followers"], reverse=True)
+    return jsonify({"results": results, "count": len(results)})
+
+
 @app.route("/start", methods=["POST"])
 def start():
     data = request.json or {}

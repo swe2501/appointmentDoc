@@ -9,163 +9,316 @@
     body { background: linear-gradient(135deg, #f8f0ff 0%, #fce4f5 100%); min-height: 100vh; }
     .card { background: white; border-radius: 20px; box-shadow: 0 4px 24px rgba(180,80,180,0.10); }
     .btn-main { background: linear-gradient(90deg, #c026d3, #a21caf); color: white; border-radius: 12px; font-weight: 600; }
-    .btn-main:active { opacity: 0.85; }
+    .btn-main:active, .btn-main:hover { opacity: 0.9; }
     .btn-cancel { background: #f3f4f6; color: #6b7280; border-radius: 12px; font-weight: 600; }
-    .result-card { border: 1px solid #f3e8ff; border-radius: 14px; transition: box-shadow 0.15s; }
-    .result-card:active { box-shadow: 0 2px 12px rgba(180,80,180,0.15); }
+    .result-card { border: 1px solid #f3e8ff; border-radius: 14px; }
     .badge { background: #f3e8ff; color: #a21caf; border-radius: 6px; font-size: 12px; padding: 2px 8px; }
     .badge-verified { background: #dbeafe; color: #1d4ed8; }
     .progress-bar { height: 6px; background: #f3e8ff; border-radius: 3px; overflow: hidden; }
     .progress-fill { height: 100%; background: linear-gradient(90deg, #c026d3, #a21caf); border-radius: 3px; transition: width 0.3s; }
     input[type=password], input[type=text], input[type=number] {
       border: 1.5px solid #e9d5ff; border-radius: 10px; padding: 12px 14px;
-      width: 100%; font-size: 16px; outline: none; background: #faf5ff;
+      width: 100%; font-size: 15px; outline: none; background: #faf5ff;
     }
-    input:focus { border-color: #c026d3; background: white; }
+    textarea {
+      border: 1.5px solid #e9d5ff; border-radius: 10px; padding: 12px 14px;
+      width: 100%; font-size: 13px; outline: none; background: #faf5ff;
+      font-family: monospace; resize: vertical;
+    }
+    input:focus, textarea:focus { border-color: #c026d3; background: white; }
     label { font-size: 13px; font-weight: 600; color: #6b21a8; margin-bottom: 4px; display: block; }
     .avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: #f3e8ff; }
+    .step-num { width: 24px; height: 24px; background: #c026d3; color: white; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+    code { background: #f3e8ff; color: #7e22ce; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    .code-block { background: #1e1e2e; color: #cdd6f4; border-radius: 12px; padding: 14px; font-size: 12px;
+      font-family: monospace; overflow-x: auto; white-space: pre; line-height: 1.5; }
+    .tab-active { background: white; color: #6b21a8; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .tab-inactive { color: #a78bfa; }
   </style>
 </head>
-<body class="p-4 pb-10">
+<body class="p-4 pb-12">
 
-  <!-- Header -->
   <div class="text-center pt-6 pb-4">
     <div class="text-4xl mb-1">🇹🇼</div>
     <h1 class="text-xl font-bold text-purple-900">IG 台灣 KOL 過濾器</h1>
     <p class="text-sm text-purple-400 mt-1">找出你追蹤的台灣人中粉絲 &gt; 5 萬的帳號</p>
   </div>
 
-  <!-- Login Form -->
-  <div id="formSection" class="card p-5 mb-4">
-
-    <!-- Tabs -->
-    <div class="flex rounded-xl bg-purple-50 p-1 mb-5 gap-1">
-      <button id="tabPassword" onclick="switchTab('password')"
-        class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all bg-white text-purple-800 shadow-sm">
-        帳號密碼
-      </button>
-      <button id="tabCookie" onclick="switchTab('cookie')"
-        class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all text-purple-400">
-        Facebook 帳號
-      </button>
-    </div>
-
-    <div class="mb-4">
-      <label>Instagram 帳號</label>
-      <input type="text" id="username" placeholder="輸入你的 IG 帳號（不含 @）"
-        autocomplete="username" autocorrect="off" autocapitalize="none" />
-    </div>
-
-    <!-- Password -->
-    <div id="passwordSection" class="mb-4">
-      <label>密碼</label>
-      <input type="password" id="password" placeholder="輸入密碼" autocomplete="current-password" />
-      <p class="text-xs text-gray-400 mt-1">密碼僅用於登入，不會被儲存</p>
-    </div>
-
-    <!-- Cookie -->
-    <div id="cookieSection" class="mb-4 hidden">
-      <label>sessionid <span class="text-purple-400 font-normal">（從瀏覽器取得）</span></label>
-      <input type="text" id="sessionCookie" placeholder="貼上 sessionid 的值"
-        autocorrect="off" autocapitalize="none" />
-      <div class="mt-3 bg-purple-50 rounded-xl p-3 text-xs text-purple-700 space-y-1.5">
-        <p class="font-bold">如何取得 sessionid？</p>
-        <p>① 在電腦 Chrome 開啟 instagram.com，用 Facebook 登入</p>
-        <p>② 安裝擴充功能「<strong>Cookie-Editor</strong>」（Chrome 商店免費）</p>
-        <p>③ 點擊 Cookie-Editor → 找到 <code class="bg-white px-1 rounded">sessionid</code> → 複製 Value</p>
-        <p>④ 貼到上方輸入框</p>
-      </div>
-    </div>
-
-    <!-- Advanced -->
-    <details class="mb-4">
-      <summary class="text-sm text-purple-600 font-semibold cursor-pointer">進階設定</summary>
-      <div class="mt-3 space-y-3">
-        <div>
-          <label>最低粉絲數門檻</label>
-          <input type="number" id="minFollowers" value="50000" min="1000" step="1000" />
-        </div>
-        <label class="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" id="taiwanOnly" checked class="w-4 h-4 accent-purple-600" />
-          <span class="text-sm text-gray-700">只顯示台灣帳號</span>
-        </label>
-      </div>
-    </details>
-
-    <button onclick="startFilter()" class="btn-main w-full py-3 text-base">
-      開始過濾
+  <!-- Tabs -->
+  <div class="flex rounded-xl bg-purple-50 p-1 mb-4 gap-1">
+    <button onclick="switchTab('browser')" id="tabBrowser"
+      class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all tab-active">
+      瀏覽器模式
+    </button>
+    <button onclick="switchTab('server')" id="tabServer"
+      class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all tab-inactive">
+      帳密模式
     </button>
   </div>
 
-  <!-- 2FA Section -->
-  <div id="tfaSection" class="card p-5 mb-4 hidden">
-    <p class="text-sm font-semibold text-purple-900 mb-3">📱 需要雙重驗證碼</p>
-    <p class="text-xs text-gray-500 mb-3">請開啟 Instagram 驗證器 App 或簡訊，輸入 6 位數驗證碼：</p>
-    <input type="text" id="tfaCode" placeholder="123456" maxlength="6" inputmode="numeric"
-      class="mb-3 text-center text-xl tracking-widest" />
-    <button onclick="submitTfa()" class="btn-main w-full py-3">送出驗證碼</button>
+  <!-- ══════════════════════════════════════════ -->
+  <!-- BROWSER MODE                               -->
+  <!-- ══════════════════════════════════════════ -->
+  <div id="browserMode">
+
+    <!-- Step 1 -->
+    <div class="card p-5 mb-3">
+      <div class="flex gap-3 items-start mb-3">
+        <span class="step-num mt-0.5">1</span>
+        <div>
+          <p class="font-semibold text-gray-800 text-sm">開啟 Instagram 並登入</p>
+          <p class="text-xs text-gray-500 mt-1">在電腦瀏覽器開啟 <code>instagram.com</code>，確認已登入你的帳號</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="card p-5 mb-3">
+      <div class="flex gap-3 items-start mb-3">
+        <span class="step-num mt-0.5">2</span>
+        <div class="flex-1">
+          <p class="font-semibold text-gray-800 text-sm">開啟開發者工具 Console</p>
+          <p class="text-xs text-gray-500 mt-1">按 <code>F12</code>（Mac 按 <code>⌘⌥J</code>）→ 點選 <strong>Console</strong> 分頁</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="card p-5 mb-3">
+      <div class="flex gap-3 items-start mb-3">
+        <span class="step-num mt-0.5">3</span>
+        <div class="flex-1 min-w-0">
+          <p class="font-semibold text-gray-800 text-sm mb-2">貼上程式碼並執行</p>
+          <div class="code-block text-xs mb-2" id="consoleScript">(async()=>{const s=ms=>new Promise(r=>setTimeout(r,ms));console.log('%c開始取得追蹤清單...','color:purple;font-weight:bold');let uid;try{const m=await fetch('/api/v1/accounts/current_user/?edit=true').then(r=>r.json());uid=m.user.pk||m.user.id;}catch(e){console.error('無法取得用戶ID',e);return;}const users=[];let maxId=null;do{const url=`/api/v1/friendships/${uid}/following/?count=200`+(maxId?`&max_id=${maxId}`:'');const d=await fetch(url).then(r=>r.json());(d.users||[]).forEach(u=>users.push({username:u.username,full_name:u.full_name||'',followers:u.follower_count||0,biography:(u.biography||'').replace(/\n/g,' '),is_verified:!!u.is_verified,profile_pic:u.profile_pic_url||'',url:`https://www.instagram.com/${u.username}/`}));maxId=d.next_max_id;console.log(`已取得 ${users.length} 人...`);if(maxId)await s(1000);}while(maxId);const json=JSON.stringify(users);try{await navigator.clipboard.writeText(json);console.log('%c✓ 已複製到剪貼板！回到網頁貼上即可。','color:green;font-size:14px;font-weight:bold');}catch(e){console.log('%c請手動複製下方 JSON：','color:orange;font-weight:bold');console.log(json);}console.log(`%c完成！共 ${users.length} 人`,'color:purple;font-weight:bold');})()</div>
+          <button onclick="copyScript()" class="btn-main w-full py-2 text-sm">複製程式碼</button>
+          <p class="text-xs text-gray-400 mt-2">貼到 Console 後按 Enter，等它跑完（追蹤人數多的話需要幾分鐘）</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="card p-5 mb-3">
+      <div class="flex gap-3 items-start">
+        <span class="step-num mt-0.5">4</span>
+        <div class="flex-1">
+          <p class="font-semibold text-gray-800 text-sm mb-2">貼上結果 JSON</p>
+          <p class="text-xs text-gray-500 mb-2">程式跑完後 JSON 會自動複製到剪貼板，直接貼到下方</p>
+          <textarea id="jsonInput" rows="4" placeholder='貼上 JSON 資料（[{"username":"...",...}] 格式）'></textarea>
+
+          <details class="mt-3 mb-3">
+            <summary class="text-xs text-purple-600 font-semibold cursor-pointer">進階設定</summary>
+            <div class="mt-2 space-y-2">
+              <div>
+                <label>最低粉絲數門檻</label>
+                <input type="number" id="bMinFollowers" value="50000" min="1000" step="1000" />
+              </div>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="bTaiwanOnly" checked class="w-4 h-4 accent-purple-600" />
+                <span class="text-xs text-gray-700">只顯示台灣帳號</span>
+              </label>
+            </div>
+          </details>
+
+          <button onclick="analyzeJson()" class="btn-main w-full py-3 text-sm">開始分析</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Browser Results -->
+    <div id="browserResults" class="hidden">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bold text-purple-900">結果 <span id="bResultCount" class="text-purple-500"></span></h2>
+        <button onclick="document.getElementById('browserResults').classList.add('hidden')" class="text-sm text-purple-600 font-semibold">清除</button>
+      </div>
+      <div id="bResultsList" class="space-y-3"></div>
+    </div>
+
+    <!-- Browser Error -->
+    <div id="browserError" class="card p-4 mb-4 hidden bg-red-50 border border-red-200">
+      <p class="text-red-700 font-semibold text-sm">❌ 錯誤</p>
+      <p id="browserErrorText" class="text-red-600 text-xs mt-1"></p>
+    </div>
+
   </div>
 
-  <!-- Progress Section -->
-  <div id="progressSection" class="card p-5 mb-4 hidden">
-    <div class="flex items-center justify-between mb-2">
-      <span class="text-sm font-semibold text-purple-800">掃描中...</span>
-      <button onclick="cancelJob()" class="btn-cancel text-xs px-3 py-1">取消</button>
-    </div>
-    <div class="progress-bar mb-3">
-      <div class="progress-fill" id="progressFill" style="width: 0%"></div>
-    </div>
-    <p id="progressText" class="text-xs text-gray-500 truncate">準備中...</p>
-    <p class="text-xs text-purple-600 mt-2">已找到 <span id="foundCount" class="font-bold">0</span> 個符合帳號</p>
-  </div>
+  <!-- ══════════════════════════════════════════ -->
+  <!-- SERVER MODE (帳密)                         -->
+  <!-- ══════════════════════════════════════════ -->
+  <div id="serverMode" class="hidden">
 
-  <!-- Results Section -->
-  <div id="resultsSection" class="hidden">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="font-bold text-purple-900">結果 <span id="resultCount" class="text-purple-500"></span></h2>
-      <button onclick="resetForm()" class="text-sm text-purple-600 font-semibold">重新搜尋</button>
+    <div class="card p-4 mb-3 bg-amber-50 border border-amber-200">
+      <p class="text-amber-700 text-xs font-semibold">⚠️ 注意</p>
+      <p class="text-amber-600 text-xs mt-1">Railway 伺服器 IP 目前可能被 Instagram 限制，建議改用上方「瀏覽器模式」。</p>
     </div>
-    <div id="resultsList" class="space-y-3"></div>
-  </div>
 
-  <!-- Error Section -->
-  <div id="errorSection" class="card p-5 mb-4 hidden bg-red-50 border border-red-200">
-    <p class="text-red-700 font-semibold text-sm">❌ 發生錯誤</p>
-    <p id="errorText" class="text-red-600 text-sm mt-1"></p>
-    <button onclick="resetForm()" class="btn-main w-full py-2 mt-3 text-sm">重試</button>
-  </div>
+    <div id="formSection" class="card p-5 mb-4">
+      <div class="flex rounded-xl bg-purple-50 p-1 mb-5 gap-1">
+        <button id="tabPassword" onclick="switchLoginTab('password')"
+          class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all tab-active">
+          帳號密碼
+        </button>
+        <button id="tabCookie" onclick="switchLoginTab('cookie')"
+          class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all tab-inactive">
+          Facebook 帳號
+        </button>
+      </div>
+
+      <div class="mb-4">
+        <label>Instagram 帳號</label>
+        <input type="text" id="username" placeholder="IG 帳號（不含 @）"
+          autocomplete="username" autocorrect="off" autocapitalize="none" />
+      </div>
+
+      <div id="passwordSection" class="mb-4">
+        <label>密碼</label>
+        <input type="password" id="password" placeholder="輸入密碼" autocomplete="current-password" />
+        <p class="text-xs text-gray-400 mt-1">密碼僅用於登入，不會被儲存</p>
+      </div>
+
+      <div id="cookieSection" class="mb-4 hidden">
+        <label>sessionid</label>
+        <input type="text" id="sessionCookie" placeholder="貼上 sessionid 的值"
+          autocorrect="off" autocapitalize="none" />
+        <div class="mt-2 bg-purple-50 rounded-xl p-3 text-xs text-purple-700 space-y-1">
+          <p class="font-bold">如何取得 sessionid？</p>
+          <p>① Chrome 開啟 instagram.com 並登入（用 Facebook）</p>
+          <p>② 安裝「Cookie-Editor」擴充功能</p>
+          <p>③ 找 <code>sessionid</code> → 複製 Value</p>
+        </div>
+      </div>
+
+      <details class="mb-4">
+        <summary class="text-sm text-purple-600 font-semibold cursor-pointer">進階設定</summary>
+        <div class="mt-3 space-y-3">
+          <div>
+            <label>最低粉絲數門檻</label>
+            <input type="number" id="minFollowers" value="50000" min="1000" step="1000" />
+          </div>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="taiwanOnly" checked class="w-4 h-4 accent-purple-600" />
+            <span class="text-sm text-gray-700">只顯示台灣帳號</span>
+          </label>
+        </div>
+      </details>
+
+      <button onclick="startFilter()" class="btn-main w-full py-3 text-base">開始過濾</button>
+    </div>
+
+    <div id="tfaSection" class="card p-5 mb-4 hidden">
+      <p class="text-sm font-semibold text-purple-900 mb-3">📱 需要雙重驗證碼</p>
+      <input type="text" id="tfaCode" placeholder="123456" maxlength="6" inputmode="numeric"
+        class="mb-3 text-center text-xl tracking-widest" />
+      <button onclick="submitTfa()" class="btn-main w-full py-3">送出驗證碼</button>
+    </div>
+
+    <div id="progressSection" class="card p-5 mb-4 hidden">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-semibold text-purple-800">掃描中...</span>
+        <button onclick="cancelJob()" class="btn-cancel text-xs px-3 py-1">取消</button>
+      </div>
+      <div class="progress-bar mb-3">
+        <div class="progress-fill" id="progressFill" style="width:0%"></div>
+      </div>
+      <p id="progressText" class="text-xs text-gray-500 truncate">準備中...</p>
+      <p class="text-xs text-purple-600 mt-2">已找到 <span id="foundCount" class="font-bold">0</span> 個符合帳號</p>
+    </div>
+
+    <div id="resultsSection" class="hidden">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bold text-purple-900">結果 <span id="resultCount" class="text-purple-500"></span></h2>
+        <button onclick="resetForm()" class="text-sm text-purple-600 font-semibold">重新搜尋</button>
+      </div>
+      <div id="resultsList" class="space-y-3"></div>
+    </div>
+
+    <div id="errorSection" class="card p-5 mb-4 hidden bg-red-50 border border-red-200">
+      <p class="text-red-700 font-semibold text-sm">❌ 發生錯誤</p>
+      <p id="errorText" class="text-red-600 text-sm mt-1"></p>
+      <button onclick="resetForm()" class="btn-main w-full py-2 mt-3 text-sm">重試</button>
+    </div>
+
+  </div><!-- /serverMode -->
 
 <script>
-let currentJobId = null;
-let pollInterval = null;
-let pendingUsername = null;
-let pendingPassword = null;
-let loginMode = 'password';
+// ── Tab switching ──────────────────────────────────
+let currentTab = 'browser';
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('browserMode').classList.toggle('hidden', tab !== 'browser');
+  document.getElementById('serverMode').classList.toggle('hidden', tab !== 'server');
+  document.getElementById('tabBrowser').className = `flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${tab==='browser'?'tab-active':'tab-inactive'}`;
+  document.getElementById('tabServer').className = `flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${tab==='server'?'tab-active':'tab-inactive'}`;
+}
 
-function switchTab(mode) {
+let loginMode = 'password';
+function switchLoginTab(mode) {
   loginMode = mode;
   const isPw = mode === 'password';
   document.getElementById('passwordSection').classList.toggle('hidden', !isPw);
   document.getElementById('cookieSection').classList.toggle('hidden', isPw);
-  document.getElementById('tabPassword').className = `flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${isPw ? 'bg-white text-purple-800 shadow-sm' : 'text-purple-400'}`;
-  document.getElementById('tabCookie').className = `flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${!isPw ? 'bg-white text-purple-800 shadow-sm' : 'text-purple-400'}`;
+  document.getElementById('tabPassword').className = `flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${isPw?'tab-active':'tab-inactive'}`;
+  document.getElementById('tabCookie').className = `flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${!isPw?'tab-active':'tab-inactive'}`;
 }
+
+// ── Browser mode ───────────────────────────────────
+function copyScript() {
+  const code = document.getElementById('consoleScript').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = event.target;
+    btn.textContent = '✓ 已複製！';
+    setTimeout(() => btn.textContent = '複製程式碼', 2000);
+  });
+}
+
+function analyzeJson() {
+  document.getElementById('browserError').classList.add('hidden');
+  const raw = document.getElementById('jsonInput').value.trim();
+  if (!raw) { showBrowserError('請貼上 JSON 資料'); return; }
+
+  let users;
+  try { users = JSON.parse(raw); } catch(e) { showBrowserError('JSON 格式錯誤，請確認複製完整'); return; }
+  if (!Array.isArray(users)) { showBrowserError('資料格式不正確，應為陣列 [...]'); return; }
+
+  const minFollowers = parseInt(document.getElementById('bMinFollowers').value) || 50000;
+  const taiwanOnly = document.getElementById('bTaiwanOnly').checked;
+
+  fetch('/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ users, min_followers: minFollowers, taiwan_only: taiwanOnly })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) { showBrowserError(data.error); return; }
+    renderResults(data.results, 'bResultsList', 'bResultCount', 'browserResults');
+  })
+  .catch(() => showBrowserError('無法連線，請稍後再試'));
+}
+
+function showBrowserError(msg) {
+  document.getElementById('browserError').classList.remove('hidden');
+  document.getElementById('browserErrorText').textContent = msg;
+}
+
+// ── Server mode ────────────────────────────────────
+let currentJobId = null;
+let pollInterval = null;
+let pendingUsername = null;
+let pendingPassword = null;
 
 function startFilter() {
   const username = document.getElementById('username').value.trim();
   if (!username) { alert('請輸入 IG 帳號'); return; }
-
   if (loginMode === 'cookie') {
     const cookie = document.getElementById('sessionCookie').value.trim();
     if (!cookie) { alert('請貼上 sessionid'); return; }
-    pendingUsername = username;
-    pendingPassword = null;
+    pendingUsername = username; pendingPassword = null;
     submitLogin(username, null, null, cookie);
   } else {
     const password = document.getElementById('password').value;
     if (!password) { alert('請輸入密碼'); return; }
-    pendingUsername = username;
-    pendingPassword = password;
+    pendingUsername = username; pendingPassword = password;
     submitLogin(username, password, null, null);
   }
 }
@@ -173,23 +326,18 @@ function startFilter() {
 function submitLogin(username, password, twoFaCode, sessionCookie) {
   const minFollowers = parseInt(document.getElementById('minFollowers').value) || 50000;
   const taiwanOnly = document.getElementById('taiwanOnly').checked;
-
   document.getElementById('formSection').classList.add('hidden');
   document.getElementById('tfaSection').classList.add('hidden');
   document.getElementById('progressSection').classList.remove('hidden');
-
   fetch('/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password, two_fa_code: twoFaCode, session_cookie: sessionCookie, min_followers: minFollowers, taiwan_only: taiwanOnly })
-  })
-  .then(r => r.json())
-  .then(data => {
+  }).then(r => r.json()).then(data => {
     if (data.error) { showError(data.error); return; }
     currentJobId = data.job_id;
-    startPolling();
-  })
-  .catch(() => showError('無法連線，請稍後再試'));
+    pollInterval = setInterval(pollStatus, 2000);
+  }).catch(() => showError('無法連線，請稍後再試'));
 }
 
 function submitTfa() {
@@ -198,82 +346,28 @@ function submitTfa() {
   submitLogin(pendingUsername, pendingPassword, code, null);
 }
 
-function startPolling() {
-  if (pollInterval) clearInterval(pollInterval);
-  pollInterval = setInterval(pollStatus, 2000);
-}
-
 function pollStatus() {
-  if (!currentJobId) return;
-  fetch(`/status/${currentJobId}`)
-    .then(r => r.json())
-    .then(data => {
-      const text = data.progress || '';
-      document.getElementById('progressText').textContent = text;
-      document.getElementById('foundCount').textContent = data.count || 0;
-
-      const match = text.match(/(\d+)%/);
-      if (match) document.getElementById('progressFill').style.width = match[1] + '%';
-
-      if (data.needs_2fa) {
-        clearInterval(pollInterval);
+  fetch(`/status/${currentJobId}`).then(r => r.json()).then(data => {
+    const text = data.progress || '';
+    document.getElementById('progressText').textContent = text;
+    document.getElementById('foundCount').textContent = data.count || 0;
+    const m = text.match(/(\d+)%/);
+    if (m) document.getElementById('progressFill').style.width = m[1] + '%';
+    if (data.needs_2fa) {
+      clearInterval(pollInterval);
+      document.getElementById('progressSection').classList.add('hidden');
+      document.getElementById('tfaSection').classList.remove('hidden');
+    } else if (data.status === 'error') {
+      clearInterval(pollInterval); showError(data.error);
+    } else if (data.status === 'done') {
+      clearInterval(pollInterval);
+      document.getElementById('progressFill').style.width = '100%';
+      setTimeout(() => {
         document.getElementById('progressSection').classList.add('hidden');
-        document.getElementById('tfaSection').classList.remove('hidden');
-        return;
-      }
-      if (data.status === 'error') {
-        clearInterval(pollInterval);
-        showError(data.error);
-        return;
-      }
-      if (data.status === 'done') {
-        clearInterval(pollInterval);
-        document.getElementById('progressFill').style.width = '100%';
-        setTimeout(() => showResults(data.results), 300);
-      }
-    })
-    .catch(() => {});
-}
-
-function showResults(results) {
-  document.getElementById('progressSection').classList.add('hidden');
-  document.getElementById('resultsSection').classList.remove('hidden');
-  document.getElementById('resultCount').textContent = `（${results.length} 個）`;
-
-  const list = document.getElementById('resultsList');
-  list.innerHTML = '';
-
-  if (results.length === 0) {
-    list.innerHTML = '<div class="text-center text-gray-400 py-8">沒有找到符合條件的帳號</div>';
-    return;
-  }
-
-  results.forEach(r => {
-    const followers = r.followers >= 1000000
-      ? (r.followers / 1000000).toFixed(1) + 'M'
-      : r.followers >= 1000
-      ? (r.followers / 1000).toFixed(1) + 'K'
-      : r.followers;
-
-    const el = document.createElement('a');
-    el.href = r.url;
-    el.target = '_blank';
-    el.rel = 'noopener noreferrer';
-    el.className = 'result-card p-4 flex gap-3 bg-white block';
-    el.innerHTML = `
-      <img src="${r.profile_pic || ''}" class="avatar flex-shrink-0" onerror="this.style.display='none'" />
-      <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2 flex-wrap">
-          <span class="font-bold text-gray-900">@${r.username}</span>
-          ${r.is_verified ? '<span class="badge badge-verified">✓ 認證</span>' : ''}
-          <span class="badge ml-auto">${followers} 粉絲</span>
-        </div>
-        ${r.full_name ? `<p class="text-sm text-gray-600 mt-0.5">${r.full_name}</p>` : ''}
-        ${r.biography ? `<p class="text-xs text-gray-400 mt-1 line-clamp-2">${r.biography}</p>` : ''}
-      </div>
-    `;
-    list.appendChild(el);
-  });
+        renderResults(data.results, 'resultsList', 'resultCount', 'resultsSection');
+      }, 300);
+    }
+  }).catch(() => {});
 }
 
 function showError(msg) {
@@ -291,16 +385,42 @@ function cancelJob() {
 }
 
 function resetForm() {
-  clearInterval(pollInterval);
-  currentJobId = null;
-  document.getElementById('formSection').classList.remove('hidden');
-  document.getElementById('progressSection').classList.add('hidden');
-  document.getElementById('resultsSection').classList.add('hidden');
-  document.getElementById('errorSection').classList.add('hidden');
-  document.getElementById('tfaSection').classList.add('hidden');
+  clearInterval(pollInterval); currentJobId = null;
+  ['formSection'].forEach(id => document.getElementById(id).classList.remove('hidden'));
+  ['progressSection','resultsSection','errorSection','tfaSection'].forEach(id => document.getElementById(id).classList.add('hidden'));
   document.getElementById('progressFill').style.width = '0%';
   document.getElementById('resultsList').innerHTML = '';
   document.getElementById('tfaCode').value = '';
+}
+
+// ── Shared result renderer ─────────────────────────
+function renderResults(results, listId, countId, sectionId) {
+  document.getElementById(sectionId).classList.remove('hidden');
+  document.getElementById(countId).textContent = `（${results.length} 個）`;
+  const list = document.getElementById(listId);
+  list.innerHTML = '';
+  if (!results.length) {
+    list.innerHTML = '<div class="text-center text-gray-400 py-8 card p-6">沒有找到符合條件的帳號</div>';
+    return;
+  }
+  results.forEach(r => {
+    const f = r.followers >= 1e6 ? (r.followers/1e6).toFixed(1)+'M' : r.followers >= 1e3 ? (r.followers/1e3).toFixed(1)+'K' : r.followers;
+    const el = document.createElement('a');
+    el.href = r.url; el.target = '_blank'; el.rel = 'noopener noreferrer';
+    el.className = 'result-card p-4 flex gap-3 bg-white block';
+    el.innerHTML = `
+      <img src="${r.profile_pic||''}" class="avatar flex-shrink-0" onerror="this.style.display='none'" />
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-bold text-gray-900">@${r.username}</span>
+          ${r.is_verified?'<span class="badge" style="background:#dbeafe;color:#1d4ed8">✓ 認證</span>':''}
+          <span class="badge ml-auto">${f} 粉絲</span>
+        </div>
+        ${r.full_name?`<p class="text-sm text-gray-600 mt-0.5">${r.full_name}</p>`:''}
+        ${r.biography?`<p class="text-xs text-gray-400 mt-1 line-clamp-2">${r.biography}</p>`:''}
+      </div>`;
+    list.appendChild(el);
+  });
 }
 </script>
 </body>
