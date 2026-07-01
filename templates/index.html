@@ -5,6 +5,50 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>IG 台灣 KOL 過濾器</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+  const CONSOLE_SCRIPT = (function(){
+    return `(async()=>{
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const uid=document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('ds_user_id='))?.split('=')[1];
+if(!uid){console.error('找不到用戶ID，請確認已登入 instagram.com');return;}
+const csrf=document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='))?.split('=')[1]||'';
+const h={'X-IG-App-ID':'936619743392459','X-CSRFToken':csrf,'X-Requested-With':'XMLHttpRequest'};
+console.log('%c【步驟1/2】取得追蹤清單...','color:blue;font-weight:bold');
+const following=[];let maxId=null;
+do{
+  const url='/api/v1/friendships/'+uid+'/following/?count=200'+(maxId?'&max_id='+maxId:'');
+  const r=await fetch(url,{headers:h});
+  if(!r.ok){console.error('API錯誤',r.status);break;}
+  const d=await r.json();
+  following.push(...(d.users||[]));
+  maxId=d.next_max_id;
+  console.log('已取得 '+following.length+' 人...');
+  if(maxId)await sleep(1000);
+}while(maxId);
+console.log('%c追蹤清單完成，共 '+following.length+' 人。開始查詢粉絲數...','color:blue;font-weight:bold');
+const results=[];
+for(let i=0;i<following.length;i++){
+  const u=following[i];
+  if(i%10===0){
+    const pct=Math.round(i/following.length*100);
+    console.log('進度：'+i+'/'+following.length+'（'+pct+'%）');
+    if(i>0)await sleep(800);
+  }
+  try{
+    const r=await fetch('/api/v1/users/'+u.pk+'/info/',{headers:h});
+    if(r.ok){
+      const d=(await r.json()).user;
+      results.push({username:d.username,full_name:d.full_name||'',followers:d.follower_count||0,biography:(d.biography||'').replace(/\\n/g,' '),is_verified:!!d.is_verified,profile_pic:d.profile_pic_url||'',url:'https://www.instagram.com/'+d.username+'/'});
+    }
+  }catch(e){}
+}
+const json=JSON.stringify(results);
+try{await navigator.clipboard.writeText(json);console.log('%c✓ 完成！已複製到剪貼板，回到網頁貼上即可。','color:green;font-size:16px;font-weight:bold');}
+catch(e){console.log('請手動複製下方 JSON：');console.log(json);}
+console.log('%c共取得 '+results.length+' 人的完整資料','color:purple;font-weight:bold');
+})()`;
+  })();
+  </script>
   <style>
     body { background: linear-gradient(135deg, #f8f0ff 0%, #fce4f5 100%); min-height: 100vh; }
     .card { background: white; border-radius: 20px; box-shadow: 0 4px 24px rgba(180,80,180,0.10); }
@@ -90,7 +134,7 @@
         <span class="step-num mt-0.5">3</span>
         <div class="flex-1 min-w-0">
           <p class="font-semibold text-gray-800 text-sm mb-2">貼上程式碼並執行</p>
-          <div class="code-block text-xs mb-2" id="consoleScript">(async()=>{const s=ms=>new Promise(r=>setTimeout(r,ms));const uid=document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('ds_user_id='))?.split('=')[1];if(!uid){console.error('找不到用戶ID，請確認已登入 instagram.com');return;}const csrf=document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='))?.split('=')[1]||'';const h={'X-IG-App-ID':'936619743392459','X-CSRFToken':csrf,'X-Requested-With':'XMLHttpRequest'};console.log('%c【步驟1/2】取得追蹤清單...','color:blue;font-weight:bold');const following=[];let maxId=null;do{const url=`/api/v1/friendships/${uid}/following/?count=200`+(maxId?`&max_id=${maxId}`:'');const r=await fetch(url,{headers:h});if(!r.ok){console.error('API錯誤',r.status);break;}const d=await r.json();following.push(...(d.users||[]));maxId=d.next_max_id;console.log(`已取得 ${following.length} 人...`);if(maxId)await s(1000);}while(maxId);console.log(`%c追蹤清單完成，共 ${following.length} 人。\n【步驟2/2】查詢每人粉絲數（需要幾分鐘）...','color:blue;font-weight:bold');const results=[];for(let i=0;i<following.length;i++){const u=following[i];if(i%10===0){const pct=Math.round(i/following.length*100);console.log(`進度：${i}/${following.length}（${pct}%）`);if(i>0)await s(800);}try{const r=await fetch(`/api/v1/users/${u.pk}/info/`,{headers:h});if(r.ok){const d=(await r.json()).user;results.push({username:d.username,full_name:d.full_name||'',followers:d.follower_count||0,biography:(d.biography||'').replace(/\n/g,' '),is_verified:!!d.is_verified,profile_pic:d.profile_pic_url||'',url:`https://www.instagram.com/${d.username}/`});}}catch(e){}}const json=JSON.stringify(results);try{await navigator.clipboard.writeText(json);console.log('%c✓ 完成！已複製到剪貼板，回到網頁貼上即可。','color:green;font-size:16px;font-weight:bold');}catch(e){console.log('%c請手動複製下方 JSON：','color:orange;font-weight:bold');console.log(json);}console.log(`%c共取得 ${results.length} 人的完整資料`,'color:purple;font-weight:bold');})()</div>
+          <div class="code-block text-xs mb-2" id="consoleScriptDisplay"></div>
           <button onclick="copyScript()" class="btn-main w-full py-2 text-sm">複製程式碼</button>
           <p class="text-xs text-gray-400 mt-2">貼到 Console 後按 Enter，等它跑完（追蹤人數多的話需要幾分鐘）</p>
         </div>
@@ -262,9 +306,13 @@ function switchLoginTab(mode) {
 }
 
 // ── Browser mode ───────────────────────────────────
+// Populate code display on load
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('consoleScriptDisplay').textContent = CONSOLE_SCRIPT;
+});
+
 function copyScript() {
-  const code = document.getElementById('consoleScript').textContent;
-  navigator.clipboard.writeText(code).then(() => {
+  navigator.clipboard.writeText(CONSOLE_SCRIPT).then(() => {
     const btn = event.target;
     btn.textContent = '✓ 已複製！';
     setTimeout(() => btn.textContent = '複製程式碼', 2000);
