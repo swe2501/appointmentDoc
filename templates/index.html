@@ -37,42 +37,15 @@
 
   <!-- Login Form -->
   <div id="formSection" class="card p-5 mb-4">
-
-    <!-- Login mode tabs -->
-    <div class="flex rounded-xl bg-purple-50 p-1 mb-5 gap-1">
-      <button id="tabPassword" onclick="switchTab('password')"
-        class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all bg-white text-purple-800 shadow-sm">
-        帳號密碼
-      </button>
-      <button id="tabCookie" onclick="switchTab('cookie')"
-        class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all text-purple-400">
-        Facebook 帳號
-      </button>
-    </div>
-
     <div class="mb-4">
       <label>Instagram 帳號</label>
-      <input type="text" id="username" placeholder="輸入你的 IG 帳號（不含 @）" autocomplete="username" autocorrect="off" autocapitalize="none" />
+      <input type="text" id="username" placeholder="輸入你的 IG 帳號（不含 @）"
+        autocomplete="username" autocorrect="off" autocapitalize="none" />
     </div>
-
-    <!-- Password section -->
-    <div id="passwordSection" class="mb-4">
+    <div class="mb-4">
       <label>密碼</label>
       <input type="password" id="password" placeholder="輸入密碼" autocomplete="current-password" />
       <p class="text-xs text-gray-400 mt-1">密碼僅用於登入，不會被儲存</p>
-    </div>
-
-    <!-- Cookie section (hidden by default) -->
-    <div id="cookieSection" class="mb-4 hidden">
-      <label>sessionid <span class="text-purple-400 font-normal">（從瀏覽器取得）</span></label>
-      <input type="text" id="sessionCookie" placeholder="貼上 sessionid 的值" autocorrect="off" autocapitalize="none" />
-      <div class="mt-3 bg-purple-50 rounded-xl p-3 text-xs text-purple-700 space-y-1.5">
-        <p class="font-bold">如何取得 sessionid？</p>
-        <p>① 在手機或電腦瀏覽器開啟 Instagram 並登入（用 Facebook 登入）</p>
-        <p>② 安裝瀏覽器擴充功能「<strong>Cookie-Editor</strong>」</p>
-        <p>③ 點擊 Cookie-Editor → 找到 <code class="bg-white px-1 rounded">sessionid</code> → 複製 Value 欄的值</p>
-        <p>④ 貼到上方輸入框</p>
-      </div>
     </div>
 
     <!-- Advanced -->
@@ -90,20 +63,21 @@
       </div>
     </details>
 
-    <button id="startBtn" onclick="startFilter()" class="btn-main w-full py-3 text-base">
+    <button onclick="startFilter()" class="btn-main w-full py-3 text-base">
       開始過濾
     </button>
   </div>
 
-  <!-- 2FA Section (hidden) -->
+  <!-- 2FA Section -->
   <div id="tfaSection" class="card p-5 mb-4 hidden">
     <p class="text-sm font-semibold text-purple-900 mb-3">📱 需要雙重驗證碼</p>
     <p class="text-xs text-gray-500 mb-3">請開啟 Instagram 驗證器 App 或簡訊，輸入 6 位數驗證碼：</p>
-    <input type="text" id="tfaCode" placeholder="123456" maxlength="6" inputmode="numeric" class="mb-3 text-center text-xl tracking-widest" />
+    <input type="text" id="tfaCode" placeholder="123456" maxlength="6" inputmode="numeric"
+      class="mb-3 text-center text-xl tracking-widest" />
     <button onclick="submitTfa()" class="btn-main w-full py-3">送出驗證碼</button>
   </div>
 
-  <!-- Progress Section (hidden) -->
+  <!-- Progress Section -->
   <div id="progressSection" class="card p-5 mb-4 hidden">
     <div class="flex items-center justify-between mb-2">
       <span class="text-sm font-semibold text-purple-800">掃描中...</span>
@@ -116,7 +90,7 @@
     <p class="text-xs text-purple-600 mt-2">已找到 <span id="foundCount" class="font-bold">0</span> 個符合帳號</p>
   </div>
 
-  <!-- Results Section (hidden) -->
+  <!-- Results Section -->
   <div id="resultsSection" class="hidden">
     <div class="flex items-center justify-between mb-3">
       <h2 class="font-bold text-purple-900">結果 <span id="resultCount" class="text-purple-500"></span></h2>
@@ -125,7 +99,7 @@
     <div id="resultsList" class="space-y-3"></div>
   </div>
 
-  <!-- Error Section (hidden) -->
+  <!-- Error Section -->
   <div id="errorSection" class="card p-5 mb-4 hidden bg-red-50 border border-red-200">
     <p class="text-red-700 font-semibold text-sm">❌ 發生錯誤</p>
     <p id="errorText" class="text-red-600 text-sm mt-1"></p>
@@ -137,37 +111,17 @@ let currentJobId = null;
 let pollInterval = null;
 let pendingUsername = null;
 let pendingPassword = null;
-let loginMode = 'password'; // 'password' | 'cookie'
-
-function switchTab(mode) {
-  loginMode = mode;
-  const isPassword = mode === 'password';
-  document.getElementById('passwordSection').classList.toggle('hidden', !isPassword);
-  document.getElementById('cookieSection').classList.toggle('hidden', isPassword);
-  document.getElementById('tabPassword').className = `flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${isPassword ? 'bg-white text-purple-800 shadow-sm' : 'text-purple-400'}`;
-  document.getElementById('tabCookie').className = `flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${!isPassword ? 'bg-white text-purple-800 shadow-sm' : 'text-purple-400'}`;
-}
 
 function startFilter() {
   const username = document.getElementById('username').value.trim();
-  if (!username) { alert('請輸入 IG 帳號'); return; }
-
-  if (loginMode === 'cookie') {
-    const cookie = document.getElementById('sessionCookie').value.trim();
-    if (!cookie) { alert('請貼上 sessionid'); return; }
-    pendingUsername = username;
-    pendingPassword = null;
-    submitLogin(username, null, null, cookie);
-  } else {
-    const password = document.getElementById('password').value;
-    if (!password) { alert('請輸入密碼'); return; }
-    pendingUsername = username;
-    pendingPassword = password;
-    submitLogin(username, password, null, null);
-  }
+  const password = document.getElementById('password').value;
+  if (!username || !password) { alert('請輸入帳號和密碼'); return; }
+  pendingUsername = username;
+  pendingPassword = password;
+  submitLogin(username, password, null);
 }
 
-function submitLogin(username, password, twoFaCode, sessionCookie) {
+function submitLogin(username, password, twoFaCode) {
   const minFollowers = parseInt(document.getElementById('minFollowers').value) || 50000;
   const taiwanOnly = document.getElementById('taiwanOnly').checked;
 
@@ -178,7 +132,7 @@ function submitLogin(username, password, twoFaCode, sessionCookie) {
   fetch('/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password, two_fa_code: twoFaCode, session_cookie: sessionCookie, min_followers: minFollowers, taiwan_only: taiwanOnly })
+    body: JSON.stringify({ username, password, two_fa_code: twoFaCode, min_followers: minFollowers, taiwan_only: taiwanOnly })
   })
   .then(r => r.json())
   .then(data => {
@@ -192,7 +146,7 @@ function submitLogin(username, password, twoFaCode, sessionCookie) {
 function submitTfa() {
   const code = document.getElementById('tfaCode').value.trim();
   if (!code) { alert('請輸入驗證碼'); return; }
-  submitLogin(pendingUsername, pendingPassword, code, null);
+  submitLogin(pendingUsername, pendingPassword, code);
 }
 
 function startPolling() {
@@ -205,16 +159,12 @@ function pollStatus() {
   fetch(`/status/${currentJobId}`)
     .then(r => r.json())
     .then(data => {
-      // Update progress
       const text = data.progress || '';
       document.getElementById('progressText').textContent = text;
       document.getElementById('foundCount').textContent = data.count || 0;
 
-      // Extract percentage from text
       const match = text.match(/(\d+)%/);
-      if (match) {
-        document.getElementById('progressFill').style.width = match[1] + '%';
-      }
+      if (match) document.getElementById('progressFill').style.width = match[1] + '%';
 
       if (data.needs_2fa) {
         clearInterval(pollInterval);
@@ -286,9 +236,7 @@ function showError(msg) {
 }
 
 function cancelJob() {
-  if (currentJobId) {
-    fetch(`/cancel/${currentJobId}`, { method: 'POST' });
-  }
+  if (currentJobId) fetch(`/cancel/${currentJobId}`, { method: 'POST' });
   clearInterval(pollInterval);
   resetForm();
 }

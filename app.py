@@ -3,8 +3,7 @@ import os
 import uuid
 import time
 import threading
-from pathlib import Path
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify
 
 try:
     import instaloader
@@ -22,7 +21,6 @@ except ImportError:
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
 
-# In-memory job store
 jobs: dict[str, dict] = {}
 jobs_lock = threading.Lock()
 
@@ -52,28 +50,9 @@ def is_taiwanese(profile) -> bool:
     return False
 
 
-def login_with_cookie(loader, username: str, session_cookie: str) -> str | None:
-    """用 sessionid cookie 登入，回傳錯誤訊息或 None（成功）"""
-    loader.context._session.cookies.set(
-        "sessionid", session_cookie, domain=".instagram.com", path="/"
-    )
-    loader.context._session.cookies.set(
-        "ig_did", "0", domain=".instagram.com", path="/"
-    )
-    try:
-        # 驗證 cookie 是否有效
-        profile = instaloader.Profile.from_username(loader.context, username)
-        loader.context.username = profile.username
-        return None
-    except instaloader.exceptions.LoginRequiredException:
-        return "Cookie 無效或已過期，請重新取得 sessionid。"
-    except Exception as e:
-        return f"Cookie 登入失敗：{str(e)}"
-
-
 def run_filter_job(job_id: str, username: str, password: str, two_fa_code: str | None,
-                   min_followers: int, taiwan_only: bool, session_cookie: str | None = None):
-    def update(status=None, progress=None, error=None, results=None, needs_2fa=False, loader_ref=None):
+                   min_followers: int, taiwan_only: bool):
+    def update(status=None, progress=None, error=None, needs_2fa=False):
         with jobs_lock:
             if status:
                 jobs[job_id]["status"] = status
@@ -81,12 +60,8 @@ def run_filter_job(job_id: str, username: str, password: str, two_fa_code: str |
                 jobs[job_id]["progress"] = progress
             if error:
                 jobs[job_id]["error"] = error
-            if results is not None:
-                jobs[job_id]["results"] = results
             if needs_2fa:
                 jobs[job_id]["needs_2fa"] = True
-            if loader_ref:
-                jobs[job_id]["_loader"] = loader_ref
 
     loader = instaloader.Instaloader(
         quiet=True,
@@ -101,33 +76,23 @@ def run_filter_job(job_id: str, username: str, password: str, two_fa_code: str |
     )
 
     update(progress="正在登入 Instagram...")
-
-    if session_cookie:
-        # Cookie 登入（適合 Facebook 連動帳號）
-        err = login_with_cookie(loader, username, session_cookie)
-        if err:
-            update(status="error", error=err)
+    try:
+        loader.login(username, password)
+    except instaloader.exceptions.BadCredentialsException:
+        update(status="error", error="帳號或密碼錯誤，請確認後重試。")
+        return
+    except instaloader.exceptions.TwoFactorAuthRequiredException:
+        if not two_fa_code:
+            update(status="needs_2fa", needs_2fa=True, progress="需要雙重驗證碼")
             return
-    else:
-        # 帳密登入
         try:
-            loader.login(username, password)
-        except instaloader.exceptions.BadCredentialsException:
-            update(status="error", error="帳號或密碼錯誤，請確認後重試。")
-            return
-        except instaloader.exceptions.TwoFactorAuthRequiredException:
-            if not two_fa_code:
-                update(status="needs_2fa", needs_2fa=True, progress="需要雙重驗證碼")
-                update(loader_ref=loader)
-                return
-            try:
-                loader.two_factor_login(two_fa_code)
-            except Exception as e:
-                update(status="error", error=f"雙重驗證失敗：{e}")
-                return
+            loader.two_factor_login(two_fa_code)
         except Exception as e:
-            update(status="error", error=f"登入失敗：{str(e)}")
+            update(status="error", error=f"雙重驗證失敗：{e}")
             return
+    except Exception as e:
+        update(status="error", error=f"登入失敗：{str(e)}")
+        return
 
     try:
         update(progress="正在取得追蹤清單...")
@@ -140,7 +105,6 @@ def run_filter_job(job_id: str, username: str, password: str, two_fa_code: str |
     total = len(followees)
     update(progress=f"共追蹤 {total} 個帳號，開始掃描...")
 
-    results = []
     for i, followee in enumerate(followees):
         with jobs_lock:
             if jobs[job_id].get("cancelled"):
@@ -175,7 +139,6 @@ def run_filter_job(job_id: str, username: str, password: str, two_fa_code: str |
         with jobs_lock:
             jobs[job_id]["results"].append(entry)
 
-    # Final sort
     with jobs_lock:
         jobs[job_id]["results"].sort(key=lambda x: x["followers"], reverse=True)
 
@@ -193,14 +156,11 @@ def start():
     username = (data.get("username") or "").strip()
     password = data.get("password") or ""
     two_fa_code = (data.get("two_fa_code") or "").strip() or None
-    session_cookie = (data.get("session_cookie") or "").strip() or None
     min_followers = int(data.get("min_followers") or FOLLOWER_THRESHOLD)
     taiwan_only = bool(data.get("taiwan_only", True))
 
-    if not username:
-        return jsonify({"error": "請輸入 IG 帳號"}), 400
-    if not session_cookie and not password:
-        return jsonify({"error": "請輸入密碼或 sessionid"}), 400
+    if not username or not password:
+        return jsonify({"error": "請輸入帳號和密碼"}), 400
 
     job_id = str(uuid.uuid4())
     with jobs_lock:
@@ -214,7 +174,7 @@ def start():
 
     thread = threading.Thread(
         target=run_filter_job,
-        args=(job_id, username, password, two_fa_code, min_followers, taiwan_only, session_cookie),
+        args=(job_id, username, password, two_fa_code, min_followers, taiwan_only),
         daemon=True,
     )
     thread.start()
