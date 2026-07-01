@@ -37,14 +37,42 @@
 
   <!-- Login Form -->
   <div id="formSection" class="card p-5 mb-4">
+
+    <!-- Login mode tabs -->
+    <div class="flex rounded-xl bg-purple-50 p-1 mb-5 gap-1">
+      <button id="tabPassword" onclick="switchTab('password')"
+        class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all bg-white text-purple-800 shadow-sm">
+        帳號密碼
+      </button>
+      <button id="tabCookie" onclick="switchTab('cookie')"
+        class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all text-purple-400">
+        Facebook 帳號
+      </button>
+    </div>
+
     <div class="mb-4">
       <label>Instagram 帳號</label>
       <input type="text" id="username" placeholder="輸入你的 IG 帳號（不含 @）" autocomplete="username" autocorrect="off" autocapitalize="none" />
     </div>
-    <div class="mb-4">
+
+    <!-- Password section -->
+    <div id="passwordSection" class="mb-4">
       <label>密碼</label>
       <input type="password" id="password" placeholder="輸入密碼" autocomplete="current-password" />
       <p class="text-xs text-gray-400 mt-1">密碼僅用於登入，不會被儲存</p>
+    </div>
+
+    <!-- Cookie section (hidden by default) -->
+    <div id="cookieSection" class="mb-4 hidden">
+      <label>sessionid <span class="text-purple-400 font-normal">（從瀏覽器取得）</span></label>
+      <input type="text" id="sessionCookie" placeholder="貼上 sessionid 的值" autocorrect="off" autocapitalize="none" />
+      <div class="mt-3 bg-purple-50 rounded-xl p-3 text-xs text-purple-700 space-y-1.5">
+        <p class="font-bold">如何取得 sessionid？</p>
+        <p>① 在手機或電腦瀏覽器開啟 Instagram 並登入（用 Facebook 登入）</p>
+        <p>② 安裝瀏覽器擴充功能「<strong>Cookie-Editor</strong>」</p>
+        <p>③ 點擊 Cookie-Editor → 找到 <code class="bg-white px-1 rounded">sessionid</code> → 複製 Value 欄的值</p>
+        <p>④ 貼到上方輸入框</p>
+      </div>
     </div>
 
     <!-- Advanced -->
@@ -109,20 +137,37 @@ let currentJobId = null;
 let pollInterval = null;
 let pendingUsername = null;
 let pendingPassword = null;
+let loginMode = 'password'; // 'password' | 'cookie'
+
+function switchTab(mode) {
+  loginMode = mode;
+  const isPassword = mode === 'password';
+  document.getElementById('passwordSection').classList.toggle('hidden', !isPassword);
+  document.getElementById('cookieSection').classList.toggle('hidden', isPassword);
+  document.getElementById('tabPassword').className = `flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${isPassword ? 'bg-white text-purple-800 shadow-sm' : 'text-purple-400'}`;
+  document.getElementById('tabCookie').className = `flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${!isPassword ? 'bg-white text-purple-800 shadow-sm' : 'text-purple-400'}`;
+}
 
 function startFilter() {
   const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value;
-  if (!username || !password) {
-    alert('請輸入帳號和密碼');
-    return;
+  if (!username) { alert('請輸入 IG 帳號'); return; }
+
+  if (loginMode === 'cookie') {
+    const cookie = document.getElementById('sessionCookie').value.trim();
+    if (!cookie) { alert('請貼上 sessionid'); return; }
+    pendingUsername = username;
+    pendingPassword = null;
+    submitLogin(username, null, null, cookie);
+  } else {
+    const password = document.getElementById('password').value;
+    if (!password) { alert('請輸入密碼'); return; }
+    pendingUsername = username;
+    pendingPassword = password;
+    submitLogin(username, password, null, null);
   }
-  pendingUsername = username;
-  pendingPassword = password;
-  submitLogin(username, password, null);
 }
 
-function submitLogin(username, password, twoFaCode) {
+function submitLogin(username, password, twoFaCode, sessionCookie) {
   const minFollowers = parseInt(document.getElementById('minFollowers').value) || 50000;
   const taiwanOnly = document.getElementById('taiwanOnly').checked;
 
@@ -133,7 +178,7 @@ function submitLogin(username, password, twoFaCode) {
   fetch('/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password, two_fa_code: twoFaCode, min_followers: minFollowers, taiwan_only: taiwanOnly })
+    body: JSON.stringify({ username, password, two_fa_code: twoFaCode, session_cookie: sessionCookie, min_followers: minFollowers, taiwan_only: taiwanOnly })
   })
   .then(r => r.json())
   .then(data => {
@@ -147,7 +192,7 @@ function submitLogin(username, password, twoFaCode) {
 function submitTfa() {
   const code = document.getElementById('tfaCode').value.trim();
   if (!code) { alert('請輸入驗證碼'); return; }
-  submitLogin(pendingUsername, pendingPassword, code);
+  submitLogin(pendingUsername, pendingPassword, code, null);
 }
 
 function startPolling() {
