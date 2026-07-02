@@ -15,7 +15,7 @@ const csrf=document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csr
 const h={'X-IG-App-ID':'936619743392459','X-CSRFToken':csrf,'X-Requested-With':'XMLHttpRequest'};
 
 // 判斷是否可能為台灣帳號（有中文字、旗幟、或 taiwan/taipei 關鍵字）
-const mightBeTW=s=>/[一-鿿㐀-䶿]/.test(s)||/taiwan|taipei|🇺🇨/i.test(s);
+const mightBeTW=s=>/[一-鿿㐀-䶿]/.test(s)||/taiwan|taipei|🇹🇼/i.test(s);
 
 console.log('%c【步驟1/3】取得追蹤清單（全部）...','color:blue;font-weight:bold');
 const following=[];let maxId=null;
@@ -34,24 +34,29 @@ do{
 const candidates=following.filter(u=>mightBeTW(u.full_name||'')||mightBeTW(u.username||''));
 console.log('%c【步驟2/3】預篩出 '+candidates.length+'/'+following.length+' 個可能台灣帳號，開始查粉絲數...','color:blue;font-weight:bold');
 
+// 使用 web_profile_info（instagram.com 網頁本身的端點，同域名，可從瀏覽器呼叫）
 const results=[];
 for(let i=0;i<candidates.length;i++){
   const u=candidates[i];
   if(i%5===0){
     const pct=Math.round(i/candidates.length*100);
-    console.log('查詢進度：'+i+'/'+candidates.length+'（'+pct+'%）');
+    console.log('查詢進度：'+(i+1)+'/'+candidates.length+'（'+pct+'%）');
     if(i>0)await sleep(1500);
   }else{
-    await sleep(400);
+    await sleep(500);
   }
   try{
-    const r=await fetch('/api/v1/users/'+u.pk+'/info/',{headers:h});
-    if(r.status===429){console.log('被限流，暫停 30 秒...');await sleep(30000);i--;continue;}
+    const r=await fetch('/api/v1/users/web_profile_info/?username='+encodeURIComponent(u.username),{headers:h});
+    if(r.status===429){console.warn('被限流，暫停 45 秒...');await sleep(45000);i--;continue;}
     if(r.ok){
-      const d=(await r.json()).user;
-      results.push({username:d.username,full_name:d.full_name||'',followers:d.follower_count||0,biography:(d.biography||'').replace(/\\n/g,' '),is_verified:!!d.is_verified,profile_pic:d.profile_pic_url||'',url:'https://www.instagram.com/'+d.username+'/'});
+      const d=(await r.json())?.data?.user;
+      if(d){
+        results.push({username:d.username,full_name:d.full_name||'',followers:d.edge_followed_by?.count||0,biography:(d.biography||'').replace(/\\n/g,' '),is_verified:!!d.is_verified,profile_pic:d.profile_pic_url||'',url:'https://www.instagram.com/'+d.username+'/'});
+      }
+    }else{
+      console.warn('查詢失敗 @'+u.username+' (HTTP '+r.status+')');
     }
-  }catch(e){}
+  }catch(e){console.warn('查詢例外 @'+u.username+':',e.message);}
 }
 
 console.log('%c【步驟3/3】輸出結果...','color:blue;font-weight:bold');
